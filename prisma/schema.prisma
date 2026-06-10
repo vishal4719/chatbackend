@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ConversationType {
+  GROUP
+  DIRECT
+}
+
+enum AdminAccessType {
+  INDEPENDENT
+  SHARED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  DOCUMENT
+}
+
+model User {
+  id           String        @id @default(cuid())
+  email        String        @unique
+  phone        String
+  name         String
+  passwordHash String
+  createdAt    DateTime      @default(now())
+  participants Participant[]
+  pushSubscriptions PushSubscription[]
+}
+
+model Admin {
+  id               String         @id @default(cuid())
+  email            String         @unique
+  passwordHash     String
+  name             String
+  accessType       AdminAccessType @default(INDEPENDENT)
+  workspaceAdminId String?
+  workspaceAdmin   Admin?         @relation("WorkspaceMembers", fields: [workspaceAdminId], references: [id])
+  workspaceMembers Admin[]        @relation("WorkspaceMembers")
+  createdByAdminId String?
+  createdByAdmin   Admin?         @relation("CreatedAdmins", fields: [createdByAdminId], references: [id])
+  createdAdmins    Admin[]        @relation("CreatedAdmins")
+  createdAt        DateTime       @default(now())
+  conversations    Conversation[]
+  participants     Participant[]
+  pushSubscriptions PushSubscription[]
+
+  @@index([workspaceAdminId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  adminId   String?
+  admin     Admin?   @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([adminId])
+}
+
+model Conversation {
+  id               String           @id @default(cuid())
+  type             ConversationType
+  title            String
+  inviteToken      String           @unique
+  createdByAdminId String
+  createdByAdmin   Admin            @relation(fields: [createdByAdminId], references: [id])
+  workspaceAdminId String?
+  destroyedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  participants     Participant[]
+  messages         Message[]
+
+  @@index([inviteToken])
+  @@index([destroyedAt])
+  @@index([workspaceAdminId])
+}
+
+model Participant {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?            @relation(fields: [userId], references: [id])
+  adminId        String?
+  admin          Admin?           @relation(fields: [adminId], references: [id])
+  displayName    String
+  phone          String
+  ipAddress      String
+  sessionToken   String           @unique
+  joinedAt       DateTime         @default(now())
+  leftAt         DateTime?
+  lastReadAt     DateTime?
+  messages       Message[]
+  messageReceipts MessageReceipt[]
+
+  @@unique([conversationId, adminId])
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([sessionToken])
+  @@index([userId])
+}
+
+model Message {
+  id             String           @id @default(cuid())
+  conversationId String
+  conversation   Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    Participant      @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  content        String
+  type           MessageType      @default(TEXT)
+  fileName       String?
+  mimeType       String?
+  fileSize       Int?
+  s3Key          String?
+  ipAddress      String
+  createdAt      DateTime         @default(now())
+  receipts       MessageReceipt[]
+
+  @@index([conversationId, createdAt])
+}
+
+model MessageReceipt {
+  id            String      @id @default(cuid())
+  messageId     String
+  message       Message     @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  participantId String
+  participant   Participant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  deliveredAt   DateTime?
+  readAt        DateTime?
+
+  @@unique([messageId, participantId])
+  @@index([participantId])
+  @@index([messageId])
+}
