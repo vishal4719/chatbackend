@@ -19,12 +19,16 @@ ENV FRONTEND_URL=http://localhost:8080 \
     S3_REGION=us-east-1 \
     S3_BUCKET=build \
     S3_ACCESS_KEY_ID=build \
-    S3_SECRET_ACCESS_KEY=build
+    S3_SECRET_ACCESS_KEY=build \
+    LIVEKIT_API_KEY=build \
+    LIVEKIT_API_SECRET=build \
+    LIVEKIT_URL=wss://build.example.com
 RUN npx prisma generate && npm run build
 
 FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=8080
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 nodejs && \
@@ -45,5 +49,5 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh && chown -R nodejs:nodejs /app
 
 USER nodejs
-EXPOSE 3000
+EXPOSE 8080
 ENTRYPOINT ["./docker-entrypoint.sh"]
